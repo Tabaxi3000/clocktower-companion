@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#211725">
+  <title>Ravenswood Ledger · Clocktower Companion</title>
+  <link rel="stylesheet" href="styles.css?v=20260920optional1">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#setup" aria-label="Ravenswood Ledger home">
+      <span class="brand-mark" aria-hidden="true">Ⅻ</span>
+      <span><strong>Ravenswood Ledger</strong><small>Clocktower companion</small></span>
+    </a>
+    <div class="top-actions">
+      <label class="mode-switch"><span class="sr-only">Workspace</span><select id="mode-select"><option value="storyteller">Storyteller desk</option><option value="player">Player notebook</option></select></label>
+      <button id="quick-save" class="quiet-button" type="button">Saved locally</button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <nav id="main-nav" class="main-nav" aria-label="Workspace sections">
+      <button data-view="setup" data-modes="storyteller player" data-story-label="Setup" data-player-label="Game & script" class="active"><span>01</span><em>Setup</em></button>
+      <button data-view="grimoire" data-modes="storyteller" data-story-label="Grimoire"><span>02</span><em>Grimoire</em></button>
+      <button data-view="run" data-modes="storyteller" data-story-label="Night & day"><span>03</span><em>Night & day</em></button>
+      <button data-view="votes" data-modes="storyteller player" data-story-label="Votes" data-player-label="Votes"><span>04</span><em>Votes</em></button>
+      <button data-view="intel" data-modes="storyteller player" data-story-label="Claims & info" data-player-label="Claims & info"><span>05</span><em>Claims & info</em></button>
+      <button data-view="worlds" data-modes="storyteller player" data-story-label="Worlds" data-player-label="Worlds"><span>06</span><em>Worlds</em></button>
+      <button data-view="strategy" data-modes="storyteller player" data-story-label="Player strategy" data-player-label="Player strategy"><span>07</span><em>Player strategy</em></button>
+      <button data-view="rules" data-modes="storyteller player" data-story-label="Rules" data-player-label="Rules"><span>08</span><em>Rules</em></button>
+      <button data-view="reference" data-modes="storyteller player" data-story-label="Script guide" data-player-label="Script guide"><span>09</span><em>Script guide</em></button>
+      <button data-view="archive" data-modes="storyteller" data-story-label="Save & review"><span>10</span><em>Save & review</em></button>
+    </nav>
+
+    <main id="app" tabindex="-1">
+      <section id="view-setup" class="view active" aria-labelledby="setup-title">
+        <div class="view-heading">
+          <div><p id="setup-eyebrow" class="eyebrow">Before the bag</p><h1 id="setup-title">Build a legal, readable game</h1></div>
+          <span id="setup-status" class="status-lozenge">Not configured</span>
+        </div>
+        <div class="privacy-callout" data-player-only hidden>Player notebook removes Storyteller-only information from the interface. If this is the Storyteller's device, it is still a presentation mode rather than a security boundary because the complete game remains in this browser's local save.</div>
+        <div class="setup-grid">
+          <article class="panel">
+            <h2>Game frame</h2>
+            <div class="form-grid two">
+              <label>Script<select id="script-select"></select></label>
+              <label>Players<input id="player-count" type="number" min="5" max="15" value="7"></label>
+              <label class="span-two" data-st-only>Setup variation<select id="twist-select"></select></label>
+              <label class="span-two" data-st-only>Recommended cast style<select id="cast-preset-select"></select><small id="cast-preset-description" class="field-help"></small></label>
+              <label id="toymaker-row" class="check-row span-two" data-st-only hidden><input id="use-toymaker" type="checkbox"> Use the public Toymaker modifier: evil gets normal starting information and the Demon must skip one attack.</label>
+            </div>
+            <div class="custom-script-row"><label class="file-button">Import Script Tool JSON<input id="custom-script-import" type="file" accept="application/json,.json"></label><span id="custom-script-status">Official and included scripts loaded.</span></div>
+            <div id="distribution-strip" class="distribution-strip" aria-live="polite" data-st-only></div>
+            <div class="button-row" data-st-only>
+              <button id="generate-cast" class="primary" type="button">Recommend cast</button>
+              <button id="randomize-cast" type="button">Rotate roles</button>
+            </div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading"><h2>Players & seats</h2><button id="shuffle-seats" class="text-button" type="button">Shuffle names</button></div>
+            <div id="name-list" class="name-list"></div>
+          </article>
+          <article class="panel wide optional-characters-panel">
+            <div class="panel-heading"><div><h2>Travellers & Loric modifiers</h2><p>Travellers are extra public characters with private alignment. Loric are public Storyteller rules and never occupy a seat.</p></div></div>
+            <div id="optional-characters"></div>
+          </article>
+          <article class="panel wide">
+            <div class="panel-heading"><div><h2 id="cast-title">Selected cast</h2><p id="cast-description">Click a token to replace it from the current script.</p></div><button id="validate-setup" class="text-button" type="button" data-st-only>Validate</button></div>
+            <div id="cast-board" class="cast-board"></div>
+            <div id="validation-list" class="validation-list" aria-live="polite" data-st-only></div>
+          </article>
+          <article class="panel" data-st-only>
+            <div class="panel-heading"><div><h2>Hidden setup</h2><p>Only choices required by the selected cast appear here. They are saved privately with this game.</p></div></div>
+            <div id="hidden-setup-list" class="form-stack"></div>
+          </article>
+          <article class="panel" data-st-only>
+            <div class="panel-heading"><h2>Demon bluffs & covers</h2><button id="make-bluffs" class="text-button" type="button">Generate</button></div>
+            <div id="bluff-plan" class="bluff-plan empty-state">Generate a cast first.</div>
+          </article>
+          <article class="panel wide" data-st-only>
+            <div class="panel-heading"><div><h2>Private role messages</h2><p>Creates a separate SMS draft for each player. You still review and send every message in your phone or Messages app.</p></div><div class="button-row compact"><button id="prepare-messages" class="primary" type="button">Prepare messages</button><button id="clear-phones" type="button">Clear phone numbers</button></div></div>
+            <div class="privacy-callout">Role texts may appear on lock screens. Phone numbers remain in this browser and are included in the full private JSON export until cleared. No number or message is sent to a server by this tool.</div>
+            <div id="delivery-list" class="delivery-list empty-state">Add phone numbers and assign roles first.</div>
+          </article>
+        </div>
+        <div class="sticky-actions" data-st-only>
+          <button id="assign-roles" class="primary large" type="button">Assign roles to seats</button>
+          <button id="start-handoff" class="large" type="button">Private role handoff</button>
+        </div>
+      </section>
+
+      <section id="view-grimoire" class="view" aria-labelledby="grimoire-title">
+        <div class="view-heading"><div><p class="eyebrow">Storyteller desk</p><h1 id="grimoire-title">Living Grimoire</h1></div><button id="hide-roles" type="button">Hide roles</button></div>
+        <div id="grimoire-ring" class="grimoire-ring"></div>
+        <div class="legend"><span><i class="dot good"></i>Good</span><span><i class="dot evil"></i>Evil</span><span><i class="dot dead"></i>Dead</span><span>Click a seat to edit state, role, claims, and notes.</span></div>
+      </section>
+
+      <section id="view-run" class="view" aria-label="Night order and game flow">
+        <div class="view-heading" data-st-only><div><p class="eyebrow">Current phase</p><h1 id="run-title"><span id="phase-label">First night</span> · <span id="day-label">Day 1</span></h1></div><div class="phase-controls"><div class="table-timer"><span id="timer-display">00:00</span><button id="timer-toggle" type="button">Start timer</button><button id="timer-reset" type="button">Reset</button></div><button id="previous-phase" type="button">Back</button><button id="next-phase" class="primary" type="button">Advance phase</button></div></div>
+        <div class="run-grid" data-st-only>
+          <article class="panel">
+            <div class="panel-heading"><h2>Wake & action queue</h2><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
+            <div id="night-queue" class="night-queue"></div>
+          </article>
+          <article class="panel">
+            <h2>Record event</h2>
+            <form id="event-form" class="form-stack">
+              <div class="form-grid two"><label>Type<select id="event-type"></select></label><label>Actor<select id="event-actor"></select></label></div>
+              <label>Target<select id="event-target"></select></label>
+              <label>What happened<textarea id="event-detail" rows="3" required placeholder="Raw choice, result, ruling, or public announcement"></textarea></label>
+              <label>Information status<select id="event-truth"><option value="na">Not information</option><option value="true">True</option><option value="false">False</option><option value="unreliable">Unreliable / unknown</option></select></label>
+              <label>False-world purpose<input id="event-purpose" placeholder="Optional: what wrong world does this support?"></label>
+              <button class="primary" type="submit">Add to timeline</button>
+            </form>
+          </article>
+          <article class="panel wide"><div class="panel-heading"><h2>Game timeline</h2><button id="clear-event-filter" class="text-button" type="button">Show all</button></div><div id="timeline" class="timeline"></div></article>
+        </div>
+      </section>
+
+      <section id="view-votes" class="view" aria-labelledby="votes-title">
+        <div class="view-heading"><div><p class="eyebrow">Execution phase</p><h1 id="votes-title">Nominations & vote ledger</h1></div><div id="block-summary" class="status-lozenge">No one on the block</div></div>
+        <div class="vote-grid">
+          <article class="panel">
+            <form id="nomination-form" class="form-stack">
+              <div class="form-grid two"><label>Nominator<select id="nominator-select"></select></label><label>Nominee<select id="nominee-select"></select></label></div>
+              <label>Case / defense notes<textarea id="nomination-case" rows="3"></textarea></label>
+              <fieldset><legend>Hands raised</legend><div id="voter-grid" class="voter-grid"></div></fieldset>
+              <div class="vote-total"><span>Threshold <strong id="vote-threshold">0</strong></span><span>Total <strong id="vote-total">0</strong></span></div>
+              <label class="check-row"><input id="mark-executed" type="checkbox"> Close nominations and mark nominee executed</label>
+              <button class="primary" type="submit">Record nomination</button>
+            </form>
+          </article>
+          <article class="panel"><h2>Today’s nominations</h2><div id="nomination-list"></div></article>
+          <article class="panel wide"><h2>Voting matrix</h2><div class="table-wrap"><table id="vote-matrix"><thead></thead><tbody></tbody></table></div></article>
+        </div>
+      </section>
+
+      <section id="view-intel" class="view" aria-labelledby="intel-title">
+        <div class="view-heading"><div><p class="eyebrow">Player notebook</p><h1 id="intel-title">Claims, trust & information</h1></div><button id="add-intel" class="primary" type="button">Add information</button></div>
+        <div id="claim-board" class="claim-board"></div>
+        <article class="panel"><div class="panel-heading"><h2>Information ledger</h2><select id="intel-filter" aria-label="Filter information entries"><option value="all">All entries</option><option value="true">Marked true</option><option value="false">Marked false</option><option value="unreliable">Unreliable</option></select></div><div id="intel-ledger" class="intel-ledger"></div></article>
+        <article class="panel" data-player-only hidden><div class="panel-heading"><div><h2>Voting history by player</h2><p>Compiled from the nomination ledger across every recorded day.</p></div></div><div id="player-vote-history" class="voting-history-grid"></div></article>
+      </section>
+
+      <section id="view-worlds" class="view" aria-labelledby="worlds-title">
+        <div class="view-heading"><div><p class="eyebrow">Deduction desk</p><h1 id="worlds-title">Possible worlds</h1></div><div class="button-row"><button id="suggest-worlds" type="button">Suggest suspects</button><button id="add-world" class="primary" type="button">Add world</button></div></div>
+        <div class="world-help">Scores organize your thinking; they are not calculated probabilities. Keep a leading world, a serious alternative, and a world where your most trusted premise fails.</div>
+        <div id="world-list" class="world-list"></div>
+      </section>
+
+      <section id="view-strategy" class="view" aria-labelledby="strategy-title">
+        <div class="view-heading"><div><p class="eyebrow">Practical playbook</p><h1 id="strategy-title">Player strategy</h1><p>Choose the role you received for a first move, claim plan, common traps, and an evil bluff plan. The library below never indicates what is actually in play.</p></div></div>
+        <article class="panel strategy-picker-panel">
+          <div class="strategy-picker-copy"><h2>What role did you receive?</h2><p>Select any character on the current script. This choice is not saved as your actual role.</p></div>
+          <label>Role<select id="strategy-role-select"></select></label>
+        </article>
+        <div id="featured-strategy" class="featured-strategy"></div>
+        <div class="alignment-strategy-grid">
+          <article id="good-strategy" class="panel strategy-primer"></article>
+          <article id="evil-strategy" class="panel strategy-primer"></article>
+        </div>
+        <div class="section-heading"><div><p class="eyebrow">Current script</p><h2>Strategy for every possible character</h2><p>Open a role for good play, reveal timing, pitfalls, and a bluff plan.</p></div></div>
+        <div id="strategy-library" class="strategy-library"></div>
+        <p id="strategy-sources" class="source-note"></p>
+      </section>
+
+      <section id="view-rules" class="view" aria-labelledby="rules-title">
+        <div class="view-heading"><div><p class="eyebrow">Table reference</p><h1 id="rules-title">Rules of play</h1><p>A complete practical reference for setup, night and day, information, nominations, death, special states, and Storyteller rulings.</p></div></div>
+        <div class="rules-callout"><strong>Quick rule:</strong> abilities and official jinxes override the general rules. The Storyteller answers rules questions truthfully and has the final table ruling.</div>
+        <article class="panel official-resources"><div><p class="eyebrow">Primary sources</p><h2>Official rules & strategy library</h2><p>Use these when a summary is not enough. Every character card also links directly to that character's official wiki page.</p></div><div id="official-resource-links" class="official-link-grid"></div></article>
+        <div class="rules-tools"><input id="rule-search" type="search" aria-label="Search rules" placeholder="Search death, voting, poison, madness, setup…"><button id="expand-rules" type="button">Expand all</button></div>
+        <nav id="rules-index" class="rules-index" aria-label="Rules topics"></nav>
+        <div id="rules-reference" class="rules-reference"></div>
+      </section>
+
+      <section id="view-reference" class="view" aria-labelledby="reference-title">
+        <div class="view-heading"><div><p class="eyebrow">Public script almanac</p><h1 id="reference-title">Script guide</h1><p id="script-guide-summary"></p></div></div>
+        <article class="panel script-order-panel"><div class="panel-heading"><div><h2>Complete public night order</h2><p>Every character on the selected script appears here, including roles that do not normally wake. This never reveals the actual setup.</p></div></div><div id="script-night-order" class="night-order-board"></div></article>
+        <div class="section-heading"><div><p class="eyebrow">Character sheet</p><h2>All possible characters and abilities</h2></div></div>
+        <div class="reference-tools"><input id="role-search" type="search" aria-label="Search script characters" placeholder="Search character, ability, timing, or tag"><select id="role-team-filter" aria-label="Filter roles by team"><option value="all">All teams</option><option value="townsfolk">Townsfolk</option><option value="outsider">Outsiders</option><option value="minion">Minions</option><option value="demon">Demons</option><option value="traveller">Travellers</option><option value="loric">Loric</option></select><label class="check-row"><input id="current-script-only" type="checkbox" checked> Current script only</label></div>
+        <div id="role-reference" class="role-reference"></div>
+      </section>
+
+      <section id="view-archive" class="view" aria-labelledby="archive-title">
+        <div class="view-heading"><div><p class="eyebrow">After the game</p><h1 id="archive-title">Save, review & restore</h1></div></div>
+        <div class="archive-grid">
+          <article class="panel"><h2>Game summary</h2><div id="game-summary"></div><label>Outcome<select id="game-outcome"><option value="unfinished">Unfinished</option><option value="good">Good won</option><option value="evil">Evil won</option><option value="other">Other / special</option></select></label><label>Postgame notes<textarea id="postgame-notes" rows="7" placeholder="What worked, what confused players, one change for next time"></textarea></label></article>
+          <article class="panel"><h2>Portable save</h2><p>Everything stays in this browser unless you export it. The full save includes phone numbers and private notes.</p><div class="button-column"><button id="export-game" class="primary" type="button">Export full private JSON</button><button id="export-redacted" type="button">Export redacted JSON</button><label class="file-button">Import game JSON<input id="import-game" type="file" accept="application/json"></label><button id="export-report" type="button">Export postgame Markdown</button></div></article>
+          <article class="panel danger-zone"><h2>Start over</h2><p>Export first if this game matters.</p><button id="new-game" type="button">Create a new blank game</button></article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="player-dialog" class="editor-dialog"><form method="dialog"><button class="dialog-close" value="close" aria-label="Close">×</button><div id="player-editor"></div></form></dialog>
+  <dialog id="intel-dialog" class="editor-dialog"><form id="intel-form"><button class="dialog-close" type="button" data-close="intel-dialog" aria-label="Close">×</button><div id="intel-editor"></div></form></dialog>
+  <dialog id="world-dialog" class="editor-dialog"><form id="world-form"><button class="dialog-close" type="button" data-close="world-dialog" aria-label="Close">×</button><div id="world-editor"></div></form></dialog>
+  <dialog id="handoff-dialog" class="handoff-dialog"><div id="handoff-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data/game-data.js?v=20260920optional1"></script>
+  <script src="data/strategy-data.js?v=20260920optional1"></script>
+  <script src="data/setup-data.js?v=20260920optional1"></script>
+  <script src="data/optional-data.js?v=20260920optional1"></script>
+  <script src="app.js?v=20260920optional1"></script>
+</body>
+</html>
