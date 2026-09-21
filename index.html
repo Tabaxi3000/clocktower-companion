@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#211725">
   <title>Ravenswood Ledger · Clocktower Companion</title>
-  <link rel="stylesheet" href="styles.css?v=20260920optional1">
+  <link rel="stylesheet" href="styles.css?v=20260920timer1">
 </head>
 <body>
   <header class="topbar">
@@ -97,8 +97,22 @@
       </section>
 
       <section id="view-run" class="view" aria-label="Night order and game flow">
-        <div class="view-heading" data-st-only><div><p class="eyebrow">Current phase</p><h1 id="run-title"><span id="phase-label">First night</span> · <span id="day-label">Day 1</span></h1></div><div class="phase-controls"><div class="table-timer"><span id="timer-display">00:00</span><button id="timer-toggle" type="button">Start timer</button><button id="timer-reset" type="button">Reset</button></div><button id="previous-phase" type="button">Back</button><button id="next-phase" class="primary" type="button">Advance phase</button></div></div>
+        <div class="view-heading" data-st-only><div><p class="eyebrow">Current phase</p><h1 id="run-title"><span id="phase-label">First night</span> · <span id="day-label">Day 1</span></h1></div><div class="phase-controls"><button id="previous-phase" type="button">Back</button><button id="next-phase" class="primary" type="button">Advance phase</button></div></div>
         <div class="run-grid" data-st-only>
+          <article class="panel wide discussion-timer-panel">
+            <div class="timer-face">
+              <div><p class="eyebrow">Discussion timer</p><strong id="timer-display" aria-live="off">05:00</strong><p id="timer-status">Ready for a five-minute discussion.</p><progress id="timer-progress" max="300" value="300" aria-label="Discussion time remaining"></progress></div>
+              <div class="timer-buttons"><button id="timer-toggle" class="primary large" type="button">Start timer</button><button id="timer-reset" type="button">Reset</button></div>
+            </div>
+            <div class="timer-settings">
+              <label>Discussion length<select id="timer-duration"><option value="60">1 minute</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300" selected>5 minutes</option><option value="420">7 minutes</option><option value="600">10 minutes</option><option value="900">15 minutes</option><option value="1200">20 minutes</option></select></label>
+              <label class="check-row"><input id="timer-sound" type="checkbox" checked> Play a table chime at zero</label>
+              <label class="check-row"><input id="timer-notification" type="checkbox"> Show a device notification when supported</label>
+              <label class="timer-message-field">Return message<textarea id="timer-message" rows="2">Time is up — please return for nominations and public discussion.</textarea></label>
+              <div class="timer-message-actions"><a id="timer-text-now" class="button-link" href="#">Open group text draft</a><button id="timer-copy-message" type="button">Copy reminder</button><small id="timer-recipient-summary">No player phone numbers saved.</small></div>
+            </div>
+            <p class="timer-privacy">The chime is automatic. Texting opens a draft for review because this static site never sends messages or phone numbers to a server. A group draft may reveal recipients' numbers; the alarm screen also offers separate drafts.</p>
+          </article>
           <article class="panel">
             <div class="panel-heading"><h2>Wake & action queue</h2><button id="refresh-queue" class="text-button" type="button">Refresh</button></div>
             <div id="night-queue" class="night-queue"></div>
@@ -121,6 +135,10 @@
       <section id="view-votes" class="view" aria-labelledby="votes-title">
         <div class="view-heading"><div><p class="eyebrow">Execution phase</p><h1 id="votes-title">Nominations & vote ledger</h1></div><div id="block-summary" class="status-lozenge">No one on the block</div></div>
         <div class="vote-grid">
+          <article class="panel wide dead-vote-panel" data-st-only>
+            <div class="panel-heading"><div><h2>Dead-vote tracker</h2><p>A dead player has one vote for the rest of the game. Recording their raised hand spends it automatically; click below to correct or restore it.</p></div><strong id="dead-vote-summary" class="dead-vote-summary">No dead players</strong></div>
+            <div id="dead-vote-list" class="dead-vote-list"></div>
+          </article>
           <article class="panel">
             <form id="nomination-form" class="form-stack">
               <div class="form-grid two"><label>Nominator<select id="nominator-select"></select></label><label>Nominee<select id="nominee-select"></select></label></div>
@@ -197,12 +215,21 @@
   <dialog id="intel-dialog" class="editor-dialog"><form id="intel-form"><button class="dialog-close" type="button" data-close="intel-dialog" aria-label="Close">×</button><div id="intel-editor"></div></form></dialog>
   <dialog id="world-dialog" class="editor-dialog"><form id="world-form"><button class="dialog-close" type="button" data-close="world-dialog" aria-label="Close">×</button><div id="world-editor"></div></form></dialog>
   <dialog id="handoff-dialog" class="handoff-dialog"><div id="handoff-content"></div></dialog>
+  <dialog id="timer-alert-dialog" class="timer-alert-dialog">
+    <form method="dialog">
+      <p class="eyebrow">Discussion timer</p>
+      <h2>Time to return</h2>
+      <p id="timer-alert-message">Please return for nominations and public discussion.</p>
+      <div id="timer-alert-recipients" class="timer-alert-recipients"></div>
+      <div class="button-row"><a id="timer-alert-text-all" class="button-link primary-link" href="#">Open group draft</a><button id="timer-alert-copy" type="button">Copy reminder</button><button id="timer-alert-chime" type="button">Play chime again</button><button id="timer-alert-dismiss" class="primary" value="close">Back to the game</button></div>
+    </form>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="data/game-data.js?v=20260920optional1"></script>
-  <script src="data/strategy-data.js?v=20260920optional1"></script>
-  <script src="data/setup-data.js?v=20260920optional1"></script>
-  <script src="data/optional-data.js?v=20260920optional1"></script>
-  <script src="app.js?v=20260920optional1"></script>
+  <script src="data/game-data.js?v=20260920timer1"></script>
+  <script src="data/strategy-data.js?v=20260920timer1"></script>
+  <script src="data/setup-data.js?v=20260920timer1"></script>
+  <script src="data/optional-data.js?v=20260920timer1"></script>
+  <script src="app.js?v=20260920timer1"></script>
 </body>
 </html>

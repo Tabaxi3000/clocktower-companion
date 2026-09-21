@@ -11,7 +11,8 @@ Ravenswood Ledger is a private-by-default companion for running and playing Bloo
 - all eighteen current Travellers as optional extra players;
 - Big Wig, Gardener, God of Ug, and Hindu Loric controls;
 - hidden setup validation, Demon bluffs, private handoff, and optional SMS drafts;
-- Grimoire, night queue, event timeline, nominations, weighted votes, claims, information, and possible worlds;
+- countdown discussion timer with chime, optional device notification, and return-message drafts;
+- Grimoire, night queue, event timeline, nominations, weighted votes, one-tap dead-vote tracking, claims, information, and possible worlds;
 - player-safe workspace, role strategy, searchable rules, complete character reference, and public night order;
 - private, redacted, and Markdown exports.
 

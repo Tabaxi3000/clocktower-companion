@@ -8,6 +8,8 @@
   const ROLES = DATA.roles;
   const R = Object.fromEntries(ROLES.map(role => [role.id, role]));
   const STORAGE_KEY = "ravenswood-ledger-v1";
+  const BASE_TITLE = document.title;
+  const DEFAULT_TIMER_MESSAGE = "Time is up — please return for nominations and public discussion.";
   const TEAM_ORDER = ["townsfolk", "outsider", "minion", "demon"];
   const STATUS_OPTIONS = ["drunk", "poisoned", "protected", "mad", "spent ability", "red herring", "good twin", "evil twin", "marked", "other"];
   const EVENT_TYPES = ["ability choice", "information", "death", "execution", "resurrection", "nomination", "vote", "protection", "drunk", "poison", "role change", "alignment change", "madness", "storyteller note"];
@@ -147,6 +149,7 @@
       players: [], cast: [], bluffs: [], phase: "firstNight", day: 1, rolesHidden: false,
       customScript: null, deliveryLog: {},
       lorics: [], loricState: { ugHolder: "", hinduReincarnations: 0 }, gardenerAssignments: {},
+      timer: { durationSeconds: 300, remainingSeconds: 300, running: false, endsAt: null, sound: true, notification: false, message: DEFAULT_TIMER_MESSAGE },
       secrets: { redHerring: "", drunkRole: "", yaggaPhrase: "", amnesiac: "" },
       hiddenSetup: {},
       events: [], nominations: [], intel: [], worlds: [], queueDone: {},
@@ -158,7 +161,7 @@
     try {
       const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!parsed || parsed.version !== 1) return freshState();
-      const loaded = { ...freshState(), ...parsed, loricState: { ...freshState().loricState, ...(parsed.loricState || {}) }, secrets: { ...freshState().secrets, ...(parsed.secrets || {}) }, hiddenSetup: { ...(parsed.hiddenSetup || {}) }, gardenerAssignments: { ...(parsed.gardenerAssignments || {}) } };
+      const loaded = { ...freshState(), ...parsed, loricState: { ...freshState().loricState, ...(parsed.loricState || {}) }, timer: { ...freshState().timer, ...(parsed.timer || {}) }, secrets: { ...freshState().secrets, ...(parsed.secrets || {}) }, hiddenSetup: { ...(parsed.hiddenSetup || {}) }, gardenerAssignments: { ...(parsed.gardenerAssignments || {}) } };
       const legacy = {
         "fortuneteller.redHerring": loaded.secrets.redHerring,
         "drunk.coverRole": loaded.secrets.drunkRole,
@@ -176,8 +179,8 @@
   let expandAllRules = false;
   let handoffIndex = 0;
   let saveTimer;
-  let tableTimer = 0;
   let tableTimerHandle = null;
+  let timerAudioContext = null;
   let countUpdateTimer = null;
 
   function saveState(message) {
@@ -201,21 +204,172 @@
     el._timer = setTimeout(() => el.classList.remove("show"), 2200);
   }
 
-  function renderTimer() {
-    const minutes = String(Math.floor(tableTimer / 60)).padStart(2, "0");
-    const seconds = String(tableTimer % 60).padStart(2, "0");
-    $("#timer-display").textContent = `${minutes}:${seconds}`;
-    $("#timer-toggle").textContent = tableTimerHandle ? "Pause timer" : "Start timer";
+  const timerPhonePlayers = () => state.players.filter(player => player.phone.trim().replace(/[^+\d]/g, ""));
+  const timerReminderText = () => state.timer.message.trim() || DEFAULT_TIMER_MESSAGE;
+
+  function timerSmsHref(players = timerPhonePlayers()) {
+    const numbers = players.map(player => player.phone.trim().replace(/[^+\d]/g, "")).filter(Boolean);
+    const separator = /iPad|iPhone|iPod/i.test(navigator.userAgent) ? "&" : "?";
+    return `sms:${numbers.join(",")}${separator}body=${encodeURIComponent(timerReminderText())}`;
   }
 
-  function toggleTimer() {
-    if (tableTimerHandle) {
-      clearInterval(tableTimerHandle);
-      tableTimerHandle = null;
-    } else {
-      tableTimerHandle = setInterval(() => { tableTimer += 1; renderTimer(); }, 1000);
-    }
+  function formatTimer(seconds) {
+    const safe = Math.max(0, Math.round(Number(seconds) || 0));
+    return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+  }
+
+  function renderTimerMessaging() {
+    const players = timerPhonePlayers();
+    const message = timerReminderText();
+    const summary = $("#timer-recipient-summary");
+    if (summary) summary.textContent = players.length
+      ? `${players.length} player${players.length === 1 ? " has" : "s have"} a saved phone number.`
+      : "No player phone numbers saved.";
+    ["#timer-text-now", "#timer-alert-text-all"].forEach(selector => {
+      const link = $(selector);
+      if (!link) return;
+      link.href = players.length ? timerSmsHref(players) : "#";
+      link.classList.toggle("disabled", !players.length);
+      link.setAttribute("aria-disabled", String(!players.length));
+      link.tabIndex = players.length ? 0 : -1;
+    });
+    const alertMessage = $("#timer-alert-message");
+    if (alertMessage) alertMessage.textContent = message;
+    const recipientList = $("#timer-alert-recipients");
+    if (recipientList) recipientList.innerHTML = players.length
+      ? `<p>${players.length} SMS draft${players.length === 1 ? " is" : "s are"} ready. Use one group draft or text people separately:</p><div>${players.map(player => `<a class="button-link" href="${escapeHTML(timerSmsHref([player]))}">Text ${escapeHTML(player.name)}</a>`).join("")}</div>`
+      : '<p>No phone numbers are saved. The chime and device notification still work; add numbers under Setup to prepare return texts.</p>';
+  }
+
+  function renderTimer() {
+    const remaining = Math.max(0, Number(state.timer.remainingSeconds) || 0);
+    $("#timer-display").textContent = formatTimer(remaining);
+    $("#timer-toggle").textContent = state.timer.running ? "Pause timer" : remaining > 0 && remaining < state.timer.durationSeconds ? "Resume timer" : "Start timer";
+    $("#timer-duration").value = String(state.timer.durationSeconds);
+    $("#timer-duration").disabled = state.timer.running;
+    $("#timer-sound").checked = state.timer.sound;
+    $("#timer-notification").checked = state.timer.notification;
+    if (document.activeElement !== $("#timer-message")) $("#timer-message").value = state.timer.message;
+    const progress = $("#timer-progress");
+    progress.max = Math.max(1, state.timer.durationSeconds);
+    progress.value = remaining;
+    const status = $("#timer-status");
+    if (state.timer.running) status.textContent = `Running · return at ${new Date(state.timer.endsAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+    else if (!remaining) status.textContent = "Time is up. Bring everyone back to town square.";
+    else if (remaining < state.timer.durationSeconds) status.textContent = `Paused with ${formatTimer(remaining)} remaining.`;
+    else status.textContent = `Ready for ${state.timer.durationSeconds / 60} minute${state.timer.durationSeconds === 60 ? "" : "s"}.`;
+    document.body.classList.toggle("timer-warning", state.timer.running && remaining <= 60);
+    renderTimerMessaging();
+  }
+
+  function primeTimerAudio() {
+    if (!state.timer.sound) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    if (!timerAudioContext) timerAudioContext = new AudioContext();
+    timerAudioContext.resume().catch(() => {});
+    const oscillator = timerAudioContext.createOscillator();
+    const gain = timerAudioContext.createGain();
+    gain.gain.value = 0.00001;
+    oscillator.connect(gain); gain.connect(timerAudioContext.destination);
+    oscillator.start(); oscillator.stop(timerAudioContext.currentTime + 0.015);
+  }
+
+  function playTimerChime() {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) { toast("This browser cannot play the timer chime"); return; }
+    if (!timerAudioContext) timerAudioContext = new AudioContext();
+    const play = () => {
+      const start = timerAudioContext.currentTime + 0.03;
+      [523.25, 659.25, 783.99, 1046.5].forEach((frequency, index) => {
+        const oscillator = timerAudioContext.createOscillator();
+        const gain = timerAudioContext.createGain();
+        const at = start + index * 0.24;
+        oscillator.type = index === 3 ? "sine" : "triangle";
+        oscillator.frequency.value = frequency;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.24, at + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.42);
+        oscillator.connect(gain); gain.connect(timerAudioContext.destination);
+        oscillator.start(at); oscillator.stop(at + 0.45);
+      });
+    };
+    if (timerAudioContext.state === "suspended") timerAudioContext.resume().then(play).catch(() => toast("Tap Play chime again to enable sound"));
+    else play();
+  }
+
+  function stopTimerInterval() {
+    if (tableTimerHandle) clearInterval(tableTimerHandle);
+    tableTimerHandle = null;
+  }
+
+  function clearTimerAlert() {
+    document.body.classList.remove("timer-finished");
+    document.title = BASE_TITLE;
+  }
+
+  function finishTimer() {
+    stopTimerInterval();
+    state.timer.running = false;
+    state.timer.endsAt = null;
+    state.timer.remainingSeconds = 0;
+    saveState();
     renderTimer();
+    document.body.classList.add("timer-finished");
+    document.title = "⏰ Time to return · Ravenswood Ledger";
+    if (state.timer.sound) playTimerChime();
+    if (state.timer.notification && "Notification" in window && Notification.permission === "granted") {
+      try { new Notification("Time to return", { body: timerReminderText(), tag: "ravenswood-discussion-timer" }); } catch {}
+    }
+    if (navigator.vibrate) navigator.vibrate([180, 90, 180, 90, 420]);
+    renderTimerMessaging();
+    const dialog = $("#timer-alert-dialog");
+    if (!dialog.open) dialog.showModal();
+  }
+
+  function tickTimer() {
+    if (!state.timer.running || !state.timer.endsAt) return;
+    const remaining = Math.max(0, Math.ceil((state.timer.endsAt - Date.now()) / 1000));
+    if (remaining === state.timer.remainingSeconds) return;
+    state.timer.remainingSeconds = remaining;
+    if (!remaining) finishTimer();
+    else renderTimer();
+  }
+
+  function beginTimerInterval() {
+    stopTimerInterval();
+    tableTimerHandle = setInterval(tickTimer, 250);
+  }
+
+  async function toggleTimer() {
+    if (state.timer.running) {
+      tickTimer();
+      state.timer.running = false;
+      state.timer.endsAt = null;
+      stopTimerInterval();
+      saveState(); renderTimer();
+      return;
+    }
+    if (!state.timer.remainingSeconds) state.timer.remainingSeconds = state.timer.durationSeconds;
+    clearTimerAlert();
+    primeTimerAudio();
+    if (state.timer.notification && "Notification" in window && Notification.permission === "default") {
+      try { await Notification.requestPermission(); } catch {}
+    }
+    state.timer.running = true;
+    state.timer.endsAt = Date.now() + state.timer.remainingSeconds * 1000;
+    saveState();
+    beginTimerInterval();
+    renderTimer();
+  }
+
+  function resetTimer() {
+    stopTimerInterval();
+    state.timer.running = false;
+    state.timer.endsAt = null;
+    state.timer.remainingSeconds = state.timer.durationSeconds;
+    clearTimerAlert();
+    saveState(); renderTimer();
   }
 
   function shuffle(values) {
@@ -971,15 +1125,29 @@
     $("#vote-threshold").textContent = threshold;
     $("#nominator-select").innerHTML = optionPlayers(false);
     $("#nominee-select").innerHTML = optionPlayers(false);
+    renderDeadVotes();
     const reminders = [
       loricActive("bigwig") ? "Big Wig: after a nomination, the nominee chooses the only speaker before voting; that speaker must be mad the nominee is good or might die." : "",
       loricActive("godofug") ? `${playerName(state.loricState.ugHolder)} currently wears the Ug hat and defaults to a two-vote hand.` : ""
     ].filter(Boolean);
     $("#voter-grid").innerHTML = `${reminders.length ? `<div class="vote-loric-note">${reminders.map(escapeHTML).join("<br>")}</div>` : ""}${state.players.map(p => {
       const ugVote = loricActive("godofug") && p.id === state.loricState.ugHolder;
-      return `<div class="voter-check ${!p.alive && !p.deadVote ? "spent" : ""}"><input type="checkbox" data-voter="${p.id}" ${!p.alive && !p.deadVote ? "disabled" : ""} aria-label="${escapeHTML(p.name)} votes"><span>${escapeHTML(p.name)}${p.alive ? "" : " †"}${ugVote ? " · Ug" : ""}</span><select data-vote-weight="${p.id}" aria-label="${escapeHTML(p.name)} vote weight"><option value="1" ${ugVote ? "" : "selected"}>+1</option><option value="2" ${ugVote ? "selected" : ""}>+2</option><option value="-1">−1</option><option value="3">+3</option></select></div>`;
+      const deadVoteClass = p.alive ? "" : p.deadVote ? "dead-available" : "spent";
+      const deadVoteLabel = p.alive ? "" : p.deadVote ? '<small>dead vote available</small>' : '<small>dead vote spent</small>';
+      return `<div class="voter-check ${deadVoteClass}"><input type="checkbox" data-voter="${p.id}" ${!p.alive && !p.deadVote ? "disabled" : ""} aria-label="${escapeHTML(p.name)} votes"><span>${escapeHTML(p.name)}${p.alive ? "" : " †"}${ugVote ? " · Ug" : ""}${deadVoteLabel}</span><select data-vote-weight="${p.id}" aria-label="${escapeHTML(p.name)} vote weight"><option value="1" ${ugVote ? "" : "selected"}>+1</option><option value="2" ${ugVote ? "selected" : ""}>+2</option><option value="-1">−1</option><option value="3">+3</option></select></div>`;
     }).join("")}`;
     updateVoteTotal(); renderNominationList(); renderVoteMatrix();
+  }
+
+  function renderDeadVotes() {
+    const list = $("#dead-vote-list");
+    const summary = $("#dead-vote-summary");
+    if (!list || !summary) return;
+    if (state.mode !== "storyteller") { list.innerHTML = ""; summary.textContent = ""; return; }
+    const dead = state.players.filter(player => !player.alive);
+    const available = dead.filter(player => player.deadVote).length;
+    summary.textContent = dead.length ? `${available} available · ${dead.length - available} spent` : "No dead players";
+    list.innerHTML = dead.length ? dead.map(player => `<button type="button" class="dead-vote-card ${player.deadVote ? "available" : "spent"}" data-toggle-dead-vote="${escapeHTML(player.id)}" aria-pressed="${String(!player.deadVote)}"><span><strong>${escapeHTML(player.name)}</strong><small>${player.deadVote ? "Click when this player uses their vote" : "Click to restore if marked by mistake"}</small></span><b>${player.deadVote ? "AVAILABLE" : "SPENT"}</b></button>`).join("") : '<p class="empty-state">No one is dead yet. Dead players will appear here automatically.</p>';
   }
 
   function updateVoteTotal() {
@@ -1131,7 +1299,7 @@
   }
 
   function renderAll() {
-    renderTop(); renderSetup(); renderGrimoire(); renderRun(); renderVotes(); renderIntel(); renderWorlds(); renderStrategy(); renderRules(); renderReference(); renderArchive();
+    renderTop(); renderSetup(); renderGrimoire(); renderRun(); renderVotes(); renderIntel(); renderWorlds(); renderStrategy(); renderRules(); renderReference(); renderArchive(); renderTimer();
   }
 
   function showView(view) {
@@ -1383,12 +1551,44 @@
     $("#previous-phase").addEventListener("click", () => advancePhase(true));
     $("#next-phase").addEventListener("click", () => advancePhase(false));
     $("#timer-toggle").addEventListener("click", toggleTimer);
-    $("#timer-reset").addEventListener("click", () => { if (tableTimerHandle) { clearInterval(tableTimerHandle); tableTimerHandle = null; } tableTimer = 0; renderTimer(); });
+    $("#timer-reset").addEventListener("click", resetTimer);
+    $("#timer-duration").addEventListener("change", e => {
+      stopTimerInterval();
+      state.timer.durationSeconds = Math.max(60, Number(e.target.value) || 300);
+      state.timer.remainingSeconds = state.timer.durationSeconds;
+      state.timer.running = false;
+      state.timer.endsAt = null;
+      clearTimerAlert(); saveState(); renderTimer();
+    });
+    $("#timer-sound").addEventListener("change", e => { state.timer.sound = e.target.checked; if (state.timer.sound) primeTimerAudio(); saveState(); renderTimer(); });
+    $("#timer-notification").addEventListener("change", async e => {
+      if (e.target.checked && !("Notification" in window)) { e.target.checked = false; toast("Device notifications are not supported here"); }
+      if (e.target.checked && Notification.permission === "default") {
+        try { e.target.checked = (await Notification.requestPermission()) === "granted"; } catch { e.target.checked = false; }
+      }
+      if (e.target.checked && Notification.permission === "denied") { e.target.checked = false; toast("Device notifications are blocked in browser settings"); }
+      state.timer.notification = e.target.checked; saveState(); renderTimer();
+    });
+    $("#timer-message").addEventListener("input", e => { state.timer.message = e.target.value; queueSave(); renderTimerMessaging(); });
+    $("#timer-copy-message").addEventListener("click", async () => { await copyText(timerReminderText()); toast("Return reminder copied"); });
+    $("#timer-alert-copy").addEventListener("click", async () => { await copyText(timerReminderText()); toast("Return reminder copied"); });
+    $("#timer-alert-chime").addEventListener("click", playTimerChime);
+    $("#timer-alert-dialog").addEventListener("close", clearTimerAlert);
+    [$("#timer-text-now"), $("#timer-alert-text-all")].forEach(link => link.addEventListener("click", e => { if (!timerPhonePlayers().length) { e.preventDefault(); toast("Add player phone numbers in Setup first"); } }));
     $("#refresh-queue").addEventListener("click", renderQueue);
     $("#night-queue").addEventListener("click", e => { const b = e.target.closest("[data-queue-done]"); if (!b) return; const k = b.dataset.queueDone; state.queueDone[k] = !state.queueDone[k]; queueSave(); renderQueue(); });
     $("#event-form").addEventListener("submit", e => { e.preventDefault(); addEvent({ type: $("#event-type").value, actor: $("#event-actor").value, target: $("#event-target").value, detail: $("#event-detail").value.trim(), truth: $("#event-truth").value, purpose: $("#event-purpose").value.trim() }); e.target.reset(); renderAll(); });
     $("#timeline").addEventListener("click", e => { const b = e.target.closest("[data-delete-event]"); if (!b) return; state.events = state.events.filter(x => x.id !== b.dataset.deleteEvent); saveState("Event removed"); renderAll(); });
     $("#voter-grid").addEventListener("change", updateVoteTotal);
+    $("#dead-vote-list").addEventListener("click", e => {
+      const button = e.target.closest("[data-toggle-dead-vote]");
+      if (!button) return;
+      const player = state.players.find(candidate => candidate.id === button.dataset.toggleDeadVote && !candidate.alive);
+      if (!player) return;
+      player.deadVote = !player.deadVote;
+      saveState(`${player.name}'s dead vote marked ${player.deadVote ? "available" : "spent"}`);
+      renderVotes(); renderGrimoire();
+    });
     $("#nomination-form").addEventListener("submit", e => {
       e.preventDefault();
       const nominator = $("#nominator-select").value, nominee = $("#nominee-select").value;
@@ -1423,13 +1623,24 @@
     $("#export-game").addEventListener("click", () => download(`ravenswood-${state.script}-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(state,null,2)));
     $("#export-redacted").addEventListener("click", () => download(`ravenswood-${state.script}-redacted-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(redactedState(),null,2)));
     $("#export-report").addEventListener("click", () => download(`clocktower-review-${new Date().toISOString().slice(0,10)}.md`, markdownReport(), "text/markdown"));
-    $("#import-game").addEventListener("change", async e => { const file = e.target.files[0]; if (!file) return; try { const parsed = JSON.parse(await file.text()); if (!parsed.players || !parsed.script) throw new Error("Invalid save"); state = { ...freshState(), ...parsed, loricState: { ...freshState().loricState, ...(parsed.loricState || {}) }, secrets: { ...freshState().secrets, ...(parsed.secrets || {}) }, hiddenSetup: { ...(parsed.hiddenSetup || {}) }, gardenerAssignments: { ...(parsed.gardenerAssignments || {}) } }; ensurePlayers(); hydrateCustomRoles(); renderScriptOptions(); saveState("Game imported"); renderAll(); } catch (err) { toast(`Could not import: ${err.message}`); } e.target.value = ""; });
-    $("#new-game").addEventListener("click", () => { if (!confirm("Start a new blank game? Export first if you need this record.")) return; state = freshState(); ensurePlayers(); recommendCast(); showView("setup"); });
+    $("#import-game").addEventListener("change", async e => { const file = e.target.files[0]; if (!file) return; try { const parsed = JSON.parse(await file.text()); if (!parsed.players || !parsed.script) throw new Error("Invalid save"); stopTimerInterval(); state = { ...freshState(), ...parsed, loricState: { ...freshState().loricState, ...(parsed.loricState || {}) }, timer: { ...freshState().timer, ...(parsed.timer || {}) }, secrets: { ...freshState().secrets, ...(parsed.secrets || {}) }, hiddenSetup: { ...(parsed.hiddenSetup || {}) }, gardenerAssignments: { ...(parsed.gardenerAssignments || {}) } }; ensurePlayers(); hydrateCustomRoles(); renderScriptOptions(); saveState("Game imported"); renderAll(); if (state.timer.running && state.timer.endsAt) beginTimerInterval(); } catch (err) { toast(`Could not import: ${err.message}`); } e.target.value = ""; });
+    $("#new-game").addEventListener("click", () => { if (!confirm("Start a new blank game? Export first if you need this record.")) return; stopTimerInterval(); clearTimerAlert(); state = freshState(); ensurePlayers(); recommendCast(); showView("setup"); });
     $("#quick-save").addEventListener("click", () => saveState("Game saved locally"));
     $$('[data-close]').forEach(b => b.addEventListener("click", () => $(`#${b.dataset.close}`).close()));
   }
 
   function init() {
+    let timerExpiredWhileAway = false;
+    state.timer.durationSeconds = Math.max(60, Number(state.timer.durationSeconds) || 300);
+    state.timer.remainingSeconds = Math.max(0, Number(state.timer.remainingSeconds) || 0);
+    if (state.timer.running && state.timer.endsAt) {
+      state.timer.remainingSeconds = Math.max(0, Math.ceil((Number(state.timer.endsAt) - Date.now()) / 1000));
+      if (!state.timer.remainingSeconds) timerExpiredWhileAway = true;
+    } else {
+      state.timer.running = false;
+      state.timer.endsAt = null;
+      if (!state.timer.remainingSeconds) state.timer.remainingSeconds = state.timer.durationSeconds;
+    }
     ensurePlayers();
     hydrateCustomRoles();
     if (state.script === "custom" && !state.customScript) state.script = "tb";
@@ -1437,7 +1648,8 @@
     if (!state.cast.length) recommendCast();
     bindEvents();
     renderAll();
-    renderTimer();
+    if (timerExpiredWhileAway) finishTimer();
+    else if (state.timer.running) beginTimerInterval();
     const hash = location.hash.slice(1);
     if (hash && $(`#view-${hash}`)) showView(hash);
   }
